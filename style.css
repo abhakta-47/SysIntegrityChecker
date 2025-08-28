@@ -1,0 +1,54 @@
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #111827;
+    /* bg-gray-900 */
+    color: #D1D5DB;
+    /* text-gray-300 */
+}
+
+.status-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.status-pending {
+    background-color: #6B7280;
+}
+
+/* gray-500 */
+.status-pass {
+    background-color: #10B981;
+}
+
+/* green-500 */
+.status-flagged {
+    background-color: #F59E0B;
+}
+
+/* amber-500 */
+.loader {
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.table-cell-data {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
