@@ -61,10 +61,10 @@ const ALL_CHECKS = [
     { tableId: 'hardware-report', checkName: 'Display Setup', checkId: 'display-setup', checkFunction: checkDisplay },
     { tableId: 'hardware-report', checkName: 'Screen Properties', checkId: 'screen-properties', checkFunction: checkScreenProperties },
 
-    // --- Browser Integrity Section ---
-    { tableId: 'browser-report', checkName: 'Developer Tools', checkId: 'dev-tools', checkFunction: checkDevTools },
-    { tableId: 'browser-report', checkName: 'Window Focus', checkId: 'window-focus', checkFunction: checkWindowFocus },
-    { tableId: 'browser-report', checkName: 'Clipboard Activity', checkId: 'clipboard-activity', checkFunction: checkClipboard },
+    // --- Browser Integrity Section (These will be updated in real-time) ---
+    { tableId: 'browser-report', checkName: 'Developer Tools', checkId: 'dev-tools', checkFunction: () => Promise.resolve({ status: 'pass', data: 'No developer tools detected yet.' }) },
+    { tableId: 'browser-report', checkName: 'Window Focus', checkId: 'window-focus', checkFunction: () => Promise.resolve({ status: 'pass', data: 'Window has maintained focus.' }) },
+    { tableId: 'browser-report', checkName: 'Clipboard Activity', checkId: 'clipboard-activity', checkFunction: () => Promise.resolve({ status: 'pass', data: 'No clipboard activity detected yet.' }) },
 
     // --- Network & Anonymity Section ---
     { tableId: 'network-report', checkName: 'VPN / Proxy Detection', checkId: 'vpn-proxy', checkFunction: checkVPNProxy },
@@ -246,14 +246,12 @@ async function checkMediaPermissionsAndDevices() {
     } catch (err) {
         console.error("Error setting up live monitoring:", err);
         const errorMessage = `${err.name}: ${err.message}`;
-        // Display error in the live monitoring section
         const errorP = document.createElement('p');
         errorP.className = 'text-red-400 text-center col-span-1 md:col-span-2';
         errorP.textContent = `Could not start live monitoring. Error: ${errorMessage}`;
         liveMonitoringSection.querySelector('.grid').innerHTML = ''; // Clear the grid
         liveMonitoringSection.querySelector('.grid').appendChild(errorP);
 
-        // Return a flagged status for the report table
         return { status: 'flagged', data: errorMessage };
     }
 }
@@ -407,45 +405,6 @@ function checkScreenProperties() {
     });
 }
 
-function checkDevTools() {
-    return new Promise(resolve => {
-        let devToolsStatus = 'pass';
-        let detectionMethod = 'Not Detected';
-        const threshold = 100;
-
-        const check = () => {
-            const startTime = performance.now();
-            debugger;
-            const endTime = performance.now();
-
-            if (endTime - startTime > threshold) {
-                devToolsStatus = 'flagged';
-                detectionMethod = 'Debugger timing check';
-            }
-            resolve({ status: devToolsStatus, data: `Detection Method: ${detectionMethod}` });
-        };
-        setTimeout(check, 500);
-    });
-}
-
-function checkWindowFocus() {
-    return new Promise(resolve => {
-        let focusStatus = 'pass';
-        if (focusLossCount > 0) focusStatus = 'flagged';
-        resolve({ status: focusStatus, data: `Window lost focus ${focusLossCount} time(s).` });
-    });
-}
-
-function checkClipboard() {
-    return new Promise(resolve => {
-        let clipboardStatus = 'pass';
-        const totalActions = copyCount + cutCount + pasteCount;
-        if (totalActions > 5) clipboardStatus = 'flagged';
-        const data = `Clipboard Actions: ${copyCount} copies, ${cutCount} cuts, ${pasteCount} pastes.`;
-        resolve({ status: clipboardStatus, data });
-    });
-}
-
 async function checkVPNProxy() {
     let status = 'pass';
     let data = 'No timezone mismatch detected.';
@@ -552,6 +511,50 @@ async function checkAudioFingerprint() {
 
 // --- Main Application Logic ---
 
+// Helper function to update clipboard status in real-time
+function updateClipboardStatus() {
+    const totalActions = copyCount + cutCount + pasteCount;
+    const data = `Clipboard Actions: ${copyCount} copies, ${cutCount} cuts, ${pasteCount} pastes.`;
+    const status = totalActions > 5 ? 'flagged' : 'pass';
+    const message = totalActions > 5 ? data + ' (High activity detected)' : data;
+    updateRow('clipboard-activity', status, message);
+}
+
+// Function to start all continuous monitoring
+function startContinuousMonitoring() {
+    // 1. Monitor Developer Tools
+    let devToolsFlagged = false;
+    const devToolsInterval = setInterval(() => {
+        if (devToolsFlagged) return;
+        const threshold = 100;
+        const startTime = performance.now();
+        debugger;
+        const endTime = performance.now();
+        if (endTime - startTime > threshold) {
+            updateRow('dev-tools', 'flagged', 'Developer Tools were detected.');
+            devToolsFlagged = true;
+            clearInterval(devToolsInterval); // Stop checking once detected
+        }
+    }, 2000); // Check every 2 seconds
+
+    // 2. Monitor Window Focus (add listeners directly)
+    const handleFocusChange = () => {
+        focusLossCount++;
+        updateRow('window-focus', 'flagged', `Window lost focus ${focusLossCount} time(s).`);
+    };
+    window.addEventListener('blur', handleFocusChange);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            handleFocusChange();
+        }
+    });
+
+    // 3. Monitor Clipboard (add listeners directly)
+    document.addEventListener('copy', () => { copyCount++; updateClipboardStatus(); });
+    document.addEventListener('cut', () => { cutCount++; updateClipboardStatus(); });
+    document.addEventListener('paste', () => { pasteCount++; updateClipboardStatus(); });
+}
+
 function initializeReportUI() {
     ALL_CHECKS.forEach(check => {
         createPendingRow(check.tableId, check.checkName, check.checkId);
@@ -559,15 +562,7 @@ function initializeReportUI() {
 }
 
 function setupGlobalListeners() {
-    window.addEventListener('blur', () => { focusLossCount++; });
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') focusLossCount++;
-    });
-    document.addEventListener('copy', () => { copyCount++; });
-    document.addEventListener('cut', () => { cutCount++; });
-    document.addEventListener('paste', () => { pasteCount++; });
-
-    // Setup replay button listeners
+    // Replay listeners are now the only ones here initially
     replayCameraBtn.addEventListener('click', () => handleReplay(recorders.camera.chunks, replayCameraVideo));
     replayScreenBtn.addEventListener('click', () => handleReplay(recorders.screen.chunks, replayScreenVideo));
     replayMicBtn.addEventListener('click', () => handleReplay(recorders.mic.chunks, replayMicAudio));
@@ -580,8 +575,10 @@ async function runSystemCheck() {
     reportContainer.classList.remove('hidden');
     liveMonitoringSection.classList.remove('hidden');
 
-
     initializeReportUI();
+
+    // Start continuous monitoring for DevTools, Focus, and Clipboard
+    startContinuousMonitoring();
 
     const promises = ALL_CHECKS.map(async (check) => {
         try {
