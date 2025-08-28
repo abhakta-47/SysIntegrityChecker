@@ -45,6 +45,9 @@ async function sha256(message) {
 
 // --- Definitions for all checks ---
 const ALL_CHECKS = [
+    // This new check handles all media permissions, live feeds, and device enumeration
+    { tableId: 'hardware-report', checkName: 'Media Permissions & Devices', checkId: 'media-permissions', checkFunction: checkMediaPermissionsAndDevices },
+
     // --- Virtualization & Emulation Section ---
     { tableId: 'virtualization-report', checkName: 'WebGL Renderer', checkId: 'webgl-renderer', checkFunction: checkWebGL },
     { tableId: 'virtualization-report', checkName: 'Automation Flags', checkId: 'automation-flags', checkFunction: checkAutomationFlags },
@@ -56,7 +59,6 @@ const ALL_CHECKS = [
 
     // --- Hardware Profile Section ---
     { tableId: 'hardware-report', checkName: 'Display Setup', checkId: 'display-setup', checkFunction: checkDisplay },
-    { tableId: 'hardware-report', checkName: 'Connected Media Devices', checkId: 'connected-devices', checkFunction: listMediaDevices },
     { tableId: 'hardware-report', checkName: 'Screen Properties', checkId: 'screen-properties', checkFunction: checkScreenProperties },
 
     // --- Browser Integrity Section ---
@@ -76,13 +78,6 @@ const ALL_CHECKS = [
 
 
 // --- UI Update Functions ---
-
-/**
- * Creates and inserts a placeholder row with a "Pending" status.
- * @param {string} tableId - The ID of the tbody element.
- * @param {string} checkName - The name of the check being performed.
- * @param {string} checkId - A unique ID for the table row to be created.
- */
 function createPendingRow(tableId, checkName, checkId) {
     const tableBody = document.getElementById(tableId);
     if (!tableBody || document.getElementById(checkId)) return;
@@ -124,53 +119,12 @@ function updateRow(checkId, status, data) {
 // --- Live Monitoring & Recording Functions ---
 
 /**
- * Sets up live camera, screen, and audio feeds and initializes recording.
- */
-async function setupLiveMonitoring() {
-    try {
-        // Step 1: Get user media (camera + mic) and screen media
-        const userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        cameraFeed.srcObject = userStream;
-
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        screenFeed.srcObject = screenStream;
-
-        // Step 2: Create separate streams for each recorder
-        // Camera recorder gets only the video from the user's stream
-        const cameraVideoStream = new MediaStream(userStream.getVideoTracks());
-        // Mic recorder gets only the audio from the user's stream
-        const micAudioStream = new MediaStream(userStream.getAudioTracks());
-
-        // Step 3: Initialize and start the three separate recorders
-        startRecording('camera', cameraVideoStream);
-        startRecording('screen', screenStream);
-        startRecording('mic', micAudioStream);
-
-        // Step 4: Enable replay buttons and start audio visualization
-        replayCameraBtn.disabled = false;
-        replayScreenBtn.disabled = false;
-        replayMicBtn.disabled = false;
-        visualizeAudio(userStream);
-
-        liveMonitoringSection.classList.remove('hidden');
-        return true;
-
-    } catch (err) {
-        console.error("Error setting up live monitoring:", err);
-        cameraFeed.parentElement.innerHTML += `<p class="text-red-400">Could not access camera/mic: ${err.name}</p>`;
-        screenFeed.parentElement.innerHTML += `<p class="text-red-400">Could not access screen: ${err.name}</p>`;
-        liveMonitoringSection.classList.remove('hidden');
-        return false;
-    }
-}
-
-/**
  * Starts a specific recorder.
  * @param {('camera'|'screen'|'mic')} key - The key for the recorder in the recorders object.
  * @param {MediaStream} stream - The stream to record.
  */
 function startRecording(key, stream) {
-    if (stream.getTracks().length === 0) return; // Don't start recorder for empty streams
+    if (stream.getTracks().length === 0) return;
 
     const recorderState = recorders[key];
     recorderState.chunks = [];
@@ -227,7 +181,7 @@ function visualizeAudio(stream) {
         requestAnimationFrame(draw);
         analyser.getByteFrequencyData(dataArray);
 
-        canvasCtx.fillStyle = '#1f2937'; // bg-gray-800
+        canvasCtx.fillStyle = '#1f2937';
         canvasCtx.fillRect(0, 0, audioVisualizer.width, audioVisualizer.height);
 
         const barWidth = (audioVisualizer.width / dataArray.length) * 2.5;
@@ -248,30 +202,60 @@ function visualizeAudio(stream) {
 
 // --- Individual Check Functions (Each returns a Promise) ---
 
-async function listMediaDevices() {
-    let status = 'pass';
-    let data = 'N/A';
+/**
+ * This single function now handles all media requests, live feeds, recording, and device enumeration.
+ * It will gracefully fail and return a 'flagged' status without stopping the other checks.
+ */
+async function checkMediaPermissionsAndDevices() {
     try {
+        // Step 1: Request permissions and get streams
+        const userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        cameraFeed.srcObject = userStream;
+
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        screenFeed.srcObject = screenStream;
+
+        // Step 2: Set up the three separate recorders
+        startRecording('camera', new MediaStream(userStream.getVideoTracks()));
+        startRecording('mic', new MediaStream(userStream.getAudioTracks()));
+        startRecording('screen', screenStream);
+
+        // Step 3: Enable UI elements
+        replayCameraBtn.disabled = false;
+        replayScreenBtn.disabled = false;
+        replayMicBtn.disabled = false;
+        visualizeAudio(userStream);
+
+        // Step 4: Enumerate devices now that we have permission
         const devices = await navigator.mediaDevices.enumerateDevices();
         const cameras = devices.filter(d => d.kind === 'videoinput');
         const microphones = devices.filter(d => d.kind === 'audioinput');
         const suspiciousKeywords = ['virtual', 'obs', 'droidcam', 'splitcam', 'dummy', 'vcam', 'xsplit'];
 
-        data = `Cameras Found: ${cameras.length}\nMicrophones Found: ${microphones.length}\n\n`;
-        data += '--- CAMERAS ---\n' + cameras.map(c => c.label).join('\n') + '\n\n';
-        data += '--- MICROPHONES ---\n' + microphones.map(m => m.label).join('\n');
+        let data = `Cameras: ${cameras.length}, Microphones: ${microphones.length}\n---\n` +
+            devices.map(d => `${d.kind}: ${d.label}`).join('\n');
 
-        const allLabels = [...cameras, ...microphones].map(d => d.label.toLowerCase());
-        if (allLabels.some(label => suspiciousKeywords.some(k => label.includes(k)))) {
-            status = 'flagged';
-            data += '\n\nWARNING: Suspicious virtual device detected.';
+        const allLabels = devices.map(d => d.label.toLowerCase());
+        const isSuspicious = allLabels.some(label => suspiciousKeywords.some(k => label.includes(k)));
+
+        if (isSuspicious) {
+            return { status: 'flagged', data: data + '\n\nWARNING: Suspicious virtual device detected.' };
         }
+        return { status: 'pass', data: data };
 
     } catch (err) {
-        status = 'flagged';
-        data = 'Could not enumerate media devices.';
+        console.error("Error setting up live monitoring:", err);
+        const errorMessage = `${err.name}: ${err.message}`;
+        // Display error in the live monitoring section
+        const errorP = document.createElement('p');
+        errorP.className = 'text-red-400 text-center col-span-1 md:col-span-2';
+        errorP.textContent = `Could not start live monitoring. Error: ${errorMessage}`;
+        liveMonitoringSection.querySelector('.grid').innerHTML = ''; // Clear the grid
+        liveMonitoringSection.querySelector('.grid').appendChild(errorP);
+
+        // Return a flagged status for the report table
+        return { status: 'flagged', data: errorMessage };
     }
-    return { status, data };
 }
 
 
@@ -346,7 +330,6 @@ async function checkBattery() {
         if (navigator.getBattery) {
             const battery = await navigator.getBattery();
             batteryData = `Charging: ${battery.charging}\nLevel: ${battery.level * 100}%`;
-            // A common VM indicator is a fully charged, non-discharging battery state.
             if (battery.charging && battery.level === 1 && battery.dischargingTime === Infinity) {
                 batteryStatus = 'flagged';
                 batteryData += '\n(State is consistent with some virtual machines).';
@@ -385,7 +368,6 @@ async function checkDisplay() {
     let displayStatus = 'pass';
     let displayData = '';
 
-    // Modern API: getScreenDetails()
     if ('getScreenDetails' in window) {
         try {
             const screenDetails = await window.getScreenDetails();
@@ -402,7 +384,6 @@ async function checkDisplay() {
             displayStatus = 'flagged';
         }
     } else {
-        // Legacy fallback
         const screenCount = window.screen.isExtended ? '2+' : '1';
         displayData = `Detected ${screenCount} screen(s) via legacy properties.\nResolution: ${window.screen.width}x${window.screen.height}`;
         if (window.screen.isExtended) {
@@ -430,12 +411,10 @@ function checkDevTools() {
     return new Promise(resolve => {
         let devToolsStatus = 'pass';
         let detectionMethod = 'Not Detected';
-        const threshold = 100; // ms
+        const threshold = 100;
 
         const check = () => {
             const startTime = performance.now();
-            // This statement will cause a pause if devtools is open
-            // eslint-disable-next-line no-debugger
             debugger;
             const endTime = performance.now();
 
@@ -445,8 +424,6 @@ function checkDevTools() {
             }
             resolve({ status: devToolsStatus, data: `Detection Method: ${detectionMethod}` });
         };
-
-        // Run the check after a short delay to ensure the page is responsive
         setTimeout(check, 500);
     });
 }
@@ -575,18 +552,12 @@ async function checkAudioFingerprint() {
 
 // --- Main Application Logic ---
 
-/**
- * Sets up the entire UI with "Pending" rows before checks begin.
- */
 function initializeReportUI() {
     ALL_CHECKS.forEach(check => {
         createPendingRow(check.tableId, check.checkName, check.checkId);
     });
 }
 
-/**
- * Sets up event listeners to monitor browser behavior.
- */
 function setupGlobalListeners() {
     window.addEventListener('blur', () => { focusLossCount++; });
     document.addEventListener('visibilitychange', () => {
@@ -604,20 +575,11 @@ function setupGlobalListeners() {
 
 async function runSystemCheck() {
     startBtn.disabled = true;
-    startBtn.innerHTML = 'Requesting Permissions...';
-
-    const monitoringActive = await setupLiveMonitoring();
-
-    if (!monitoringActive) {
-        startBtn.innerHTML = 'Permissions Denied. Cannot Proceed.';
-        startBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-        startBtn.classList.add('bg-red-600');
-        return;
-    }
-
     startBtn.innerHTML = 'Running Checks...';
     startContainer.classList.add('hidden');
     reportContainer.classList.remove('hidden');
+    liveMonitoringSection.classList.remove('hidden');
+
 
     initializeReportUI();
 
