@@ -2,6 +2,23 @@
 const startBtn = document.getElementById('start-check-btn');
 const startContainer = document.getElementById('start-container');
 const reportContainer = document.getElementById('report-container');
+const liveMonitoringSection = document.getElementById('live-monitoring-section');
+
+// Live Feeds
+const cameraFeed = document.getElementById('camera-feed');
+const screenFeed = document.getElementById('screen-feed');
+const audioVisualizer = document.getElementById('audio-visualizer');
+
+// Replay Buttons
+const replayCameraBtn = document.getElementById('replay-camera-btn');
+const replayScreenBtn = document.getElementById('replay-screen-btn');
+const replayMicBtn = document.getElementById('replay-mic-btn');
+
+// Replay Media Elements
+const replayCameraVideo = document.getElementById('replay-camera-video');
+const replayScreenVideo = document.getElementById('replay-screen-video');
+const replayMicAudio = document.getElementById('replay-mic-audio');
+
 
 // --- State Tracking for Browser Environment ---
 let focusLossCount = 0;
@@ -9,19 +26,20 @@ let copyCount = 0;
 let cutCount = 0;
 let pasteCount = 0;
 
-// --- Helper Functions ---
+// --- State for Media Recording ---
+const recorders = {
+    camera: { recorder: null, chunks: [] },
+    screen: { recorder: null, chunks: [] },
+    mic: { recorder: null, chunks: [] },
+};
+const RECORDING_DURATION_MS = 30000; // Replay last 30 seconds
 
-/**
- * A simple async hashing function to generate SHA-256 hashes for fingerprinting.
- * @param {string} message - The string to hash.
- * @returns {Promise<string>} The hex-encoded SHA-256 hash.
- */
+// --- Helper Functions ---
 async function sha256(message) {
     const msgBuffer = new TextEncoder().encode(message);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 
@@ -38,8 +56,7 @@ const ALL_CHECKS = [
 
     // --- Hardware Profile Section ---
     { tableId: 'hardware-report', checkName: 'Display Setup', checkId: 'display-setup', checkFunction: checkDisplay },
-    { tableId: 'hardware-report', checkName: 'Connected Cameras', checkId: 'connected-cameras', checkFunction: checkMediaDevices },
-    { tableId: 'hardware-report', checkName: 'Connected Microphones', checkId: 'connected-mics', checkFunction: checkMediaDevices },
+    { tableId: 'hardware-report', checkName: 'Connected Media Devices', checkId: 'connected-devices', checkFunction: listMediaDevices },
     { tableId: 'hardware-report', checkName: 'Screen Properties', checkId: 'screen-properties', checkFunction: checkScreenProperties },
 
     // --- Browser Integrity Section ---
@@ -104,7 +121,159 @@ function updateRow(checkId, status, data) {
     row.cells[2].classList.add(status === 'pass' ? 'text-gray-300' : 'text-red-300');
 }
 
+// --- Live Monitoring & Recording Functions ---
+
+/**
+ * Sets up live camera, screen, and audio feeds and initializes recording.
+ */
+async function setupLiveMonitoring() {
+    try {
+        // Step 1: Get user media (camera + mic) and screen media
+        const userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        cameraFeed.srcObject = userStream;
+
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        screenFeed.srcObject = screenStream;
+
+        // Step 2: Create separate streams for each recorder
+        // Camera recorder gets only the video from the user's stream
+        const cameraVideoStream = new MediaStream(userStream.getVideoTracks());
+        // Mic recorder gets only the audio from the user's stream
+        const micAudioStream = new MediaStream(userStream.getAudioTracks());
+
+        // Step 3: Initialize and start the three separate recorders
+        startRecording('camera', cameraVideoStream);
+        startRecording('screen', screenStream);
+        startRecording('mic', micAudioStream);
+
+        // Step 4: Enable replay buttons and start audio visualization
+        replayCameraBtn.disabled = false;
+        replayScreenBtn.disabled = false;
+        replayMicBtn.disabled = false;
+        visualizeAudio(userStream);
+
+        liveMonitoringSection.classList.remove('hidden');
+        return true;
+
+    } catch (err) {
+        console.error("Error setting up live monitoring:", err);
+        cameraFeed.parentElement.innerHTML += `<p class="text-red-400">Could not access camera/mic: ${err.name}</p>`;
+        screenFeed.parentElement.innerHTML += `<p class="text-red-400">Could not access screen: ${err.name}</p>`;
+        liveMonitoringSection.classList.remove('hidden');
+        return false;
+    }
+}
+
+/**
+ * Starts a specific recorder.
+ * @param {('camera'|'screen'|'mic')} key - The key for the recorder in the recorders object.
+ * @param {MediaStream} stream - The stream to record.
+ */
+function startRecording(key, stream) {
+    if (stream.getTracks().length === 0) return; // Don't start recorder for empty streams
+
+    const recorderState = recorders[key];
+    recorderState.chunks = [];
+    recorderState.recorder = new MediaRecorder(stream);
+
+    recorderState.recorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+            recorderState.chunks.push(event.data);
+        }
+    };
+
+    recorderState.recorder.start();
+
+    setInterval(() => {
+        if (recorderState.recorder && recorderState.recorder.state === 'recording') {
+            recorderState.recorder.requestData();
+        }
+    }, 1000);
+}
+
+
+/**
+ * Generic replay handler.
+ * @param {Blob[]} chunks - The array of recorded Blob chunks.
+ * @param {HTMLMediaElement} mediaElement - The <video> or <audio> element to play the replay in.
+ */
+function handleReplay(chunks, mediaElement) {
+    if (chunks.length === 0) {
+        alert("No recording data available yet for this source.");
+        return;
+    }
+
+    const blob = new Blob(chunks.slice(-RECORDING_DURATION_MS / 1000), { type: mediaElement.tagName === 'VIDEO' ? 'video/webm' : 'audio/webm' });
+    const url = URL.createObjectURL(blob);
+    mediaElement.src = url;
+    mediaElement.classList.remove('hidden');
+    mediaElement.play();
+}
+
+/**
+ * Draws the audio frequency data to a canvas element.
+ */
+function visualizeAudio(stream) {
+    const audioContext = new AudioContext();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const canvasCtx = audioVisualizer.getContext('2d');
+
+    function draw() {
+        requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+
+        canvasCtx.fillStyle = '#1f2937'; // bg-gray-800
+        canvasCtx.fillRect(0, 0, audioVisualizer.width, audioVisualizer.height);
+
+        const barWidth = (audioVisualizer.width / dataArray.length) * 2.5;
+        let barHeight;
+        let x = 0;
+
+        for (let i = 0; i < dataArray.length; i++) {
+            barHeight = dataArray[i] / 2;
+            canvasCtx.fillStyle = `rgb(50, ${barHeight + 100}, 50)`;
+            canvasCtx.fillRect(x, audioVisualizer.height - barHeight, barWidth, barHeight);
+            x += barWidth + 1;
+        }
+    }
+    draw();
+}
+
+
+
 // --- Individual Check Functions (Each returns a Promise) ---
+
+async function listMediaDevices() {
+    let status = 'pass';
+    let data = 'N/A';
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter(d => d.kind === 'videoinput');
+        const microphones = devices.filter(d => d.kind === 'audioinput');
+        const suspiciousKeywords = ['virtual', 'obs', 'droidcam', 'splitcam', 'dummy', 'vcam', 'xsplit'];
+
+        data = `Cameras Found: ${cameras.length}\nMicrophones Found: ${microphones.length}\n\n`;
+        data += '--- CAMERAS ---\n' + cameras.map(c => c.label).join('\n') + '\n\n';
+        data += '--- MICROPHONES ---\n' + microphones.map(m => m.label).join('\n');
+
+        const allLabels = [...cameras, ...microphones].map(d => d.label.toLowerCase());
+        if (allLabels.some(label => suspiciousKeywords.some(k => label.includes(k)))) {
+            status = 'flagged';
+            data += '\n\nWARNING: Suspicious virtual device detected.';
+        }
+
+    } catch (err) {
+        status = 'flagged';
+        data = 'Could not enumerate media devices.';
+    }
+    return { status, data };
+}
+
 
 function checkWebGL() {
     return new Promise(resolve => {
@@ -243,44 +412,6 @@ async function checkDisplay() {
     return { status: displayStatus, data: displayData };
 }
 
-async function checkMediaDevices() {
-    let cameraData = 'No cameras found.', cameraStatus = 'pass';
-    let micData = 'No microphones found.', micStatus = 'pass';
-    try {
-        // Request permission
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cameras = devices.filter(d => d.kind === 'videoinput');
-        const microphones = devices.filter(d => d.kind === 'audioinput');
-        const suspiciousKeywords = ['virtual', 'obs', 'droidcam', 'splitcam', 'dummy', 'vcam', 'xsplit'];
-
-        if (cameras.length > 0) {
-            cameraData = cameras.map((cam, i) => `[${i + 1}] ${cam.label}`).join('\n');
-            if (cameras.some(c => suspiciousKeywords.some(k => c.label.toLowerCase().includes(k)))) {
-                cameraStatus = 'flagged';
-            }
-        }
-
-        if (microphones.length > 0) {
-            micData = microphones.map((mic, i) => `[${i + 1}] ${mic.label}`).join('\n');
-            if (microphones.some(m => suspiciousKeywords.some(k => m.label.toLowerCase().includes(k)))) {
-                micStatus = 'flagged';
-            }
-        }
-        // Stop the tracks to turn off the camera/mic light
-        stream.getTracks().forEach(track => track.stop());
-    } catch (err) {
-        const errorMsg = `Error: ${err.name}. Permission may have been denied.`;
-        cameraData = micData = errorMsg;
-        cameraStatus = micStatus = 'flagged';
-    }
-    return {
-        'connected-cameras': { status: cameraStatus, data: cameraData },
-        'connected-mics': { status: micStatus, data: micData }
-    };
-}
-
 function checkScreenProperties() {
     return new Promise(resolve => {
         let status = 'pass';
@@ -414,7 +545,6 @@ async function checkAudioFingerprint() {
         oscillator.frequency.setValueAtTime(10000, audioCtx.currentTime);
 
         const compressor = audioCtx.createDynamicsCompressor();
-        // Configure compressor with specific values
         compressor.threshold.setValueAtTime(-50, audioCtx.currentTime);
         compressor.knee.setValueAtTime(40, audioCtx.currentTime);
         compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
@@ -450,13 +580,7 @@ async function checkAudioFingerprint() {
  */
 function initializeReportUI() {
     ALL_CHECKS.forEach(check => {
-        // Special handling for the multi-output media check
-        if (check.checkId === 'connected-cameras') {
-            createPendingRow(check.tableId, 'Connected Cameras', 'connected-cameras');
-            createPendingRow(check.tableId, 'Connected Microphones', 'connected-mics');
-        } else if (check.checkId !== 'connected-mics') {
-            createPendingRow(check.tableId, check.checkName, check.checkId);
-        }
+        createPendingRow(check.tableId, check.checkName, check.checkId);
     });
 }
 
@@ -471,13 +595,26 @@ function setupGlobalListeners() {
     document.addEventListener('copy', () => { copyCount++; });
     document.addEventListener('cut', () => { cutCount++; });
     document.addEventListener('paste', () => { pasteCount++; });
+
+    // Setup replay button listeners
+    replayCameraBtn.addEventListener('click', () => handleReplay(recorders.camera.chunks, replayCameraVideo));
+    replayScreenBtn.addEventListener('click', () => handleReplay(recorders.screen.chunks, replayScreenVideo));
+    replayMicBtn.addEventListener('click', () => handleReplay(recorders.mic.chunks, replayMicAudio));
 }
 
-/**
- * Orchestrates the entire system check process.
- */
 async function runSystemCheck() {
     startBtn.disabled = true;
+    startBtn.innerHTML = 'Requesting Permissions...';
+
+    const monitoringActive = await setupLiveMonitoring();
+
+    if (!monitoringActive) {
+        startBtn.innerHTML = 'Permissions Denied. Cannot Proceed.';
+        startBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        startBtn.classList.add('bg-red-600');
+        return;
+    }
+
     startBtn.innerHTML = 'Running Checks...';
     startContainer.classList.add('hidden');
     reportContainer.classList.remove('hidden');
@@ -487,17 +624,7 @@ async function runSystemCheck() {
     const promises = ALL_CHECKS.map(async (check) => {
         try {
             const result = await check.checkFunction();
-            // Handle multi-output checks like media devices
-            if (check.checkId === 'connected-cameras' || check.checkId === 'connected-mics') {
-                if (result['connected-cameras']) {
-                    updateRow('connected-cameras', result['connected-cameras'].status, result['connected-cameras'].data);
-                }
-                if (result['connected-mics']) {
-                    updateRow('connected-mics', result['connected-mics'].status, result['connected-mics'].data);
-                }
-            } else {
-                updateRow(check.checkId, result.status, result.data);
-            }
+            updateRow(check.checkId, result.status, result.data);
         } catch (error) {
             updateRow(check.checkId, 'flagged', 'Error during check.');
             console.error(`Error in check ${check.checkName}:`, error);

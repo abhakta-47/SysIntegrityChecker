@@ -28,7 +28,58 @@
             </div>
 
             <div id="report-container" class="hidden space-y-8">
-                <!-- Section for Virtualization Analysis -->
+
+                <section id="live-monitoring-section" class="hidden">
+                    <h2 class="text-xl font-semibold text-white mb-4">Live Monitoring</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-gray-900 p-3 rounded-lg">
+                            <h3 class="text-white font-medium mb-2">Camera Feed</h3>
+                            <video id="camera-feed" class="w-full rounded" autoplay muted></video>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded-lg">
+                            <h3 class="text-white font-medium mb-2">Screen Feed</h3>
+                            <video id="screen-feed" class="w-full rounded" autoplay muted></video>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded-lg col-span-1 md:col-span-2">
+                            <h3 class="text-white font-medium mb-2">Audio Activity</h3>
+                            <canvas id="audio-visualizer" class="w-full h-24 rounded"></canvas>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <h2 class="text-xl font-semibold text-white mb-4 text-center">Recording Replays</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                            <div class="bg-gray-900 p-3 rounded-lg">
+                                <h3 class="text-white font-medium mb-2">Camera Replay</h3>
+                                <button id="replay-camera-btn"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-3 rounded-lg transition-all duration-300 shadow-lg"
+                                    disabled>
+                                    Replay Last 30s
+                                </button>
+                                <video id="replay-camera-video" class="w-full rounded mt-3 hidden" controls></video>
+                            </div>
+                            <div class="bg-gray-900 p-3 rounded-lg">
+                                <h3 class="text-white font-medium mb-2">Screen Replay</h3>
+                                <button id="replay-screen-btn"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-3 rounded-lg transition-all duration-300 shadow-lg"
+                                    disabled>
+                                    Replay Last 30s
+                                </button>
+                                <video id="replay-screen-video" class="w-full rounded mt-3 hidden" controls></video>
+                            </div>
+                            <div class="bg-gray-900 p-3 rounded-lg">
+                                <h3 class="text-white font-medium mb-2">Microphone Replay</h3>
+                                <button id="replay-mic-btn"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-3 rounded-lg transition-all duration-300 shadow-lg"
+                                    disabled>
+                                    Replay Last 30s
+                                </button>
+                                <audio id="replay-mic-audio" class="w-full rounded mt-3 hidden" controls></audio>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
                 <section>
                     <h2 class="text-xl font-semibold text-white mb-4">Virtualization & Emulation</h2>
                     <div class="overflow-x-auto">
