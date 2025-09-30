@@ -173,6 +173,177 @@
             transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(16, 185, 129, 0.5);
         }
+
+        .config-btn {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+            transition: all 0.3s;
+        }
+
+        .config-btn:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            padding: 20px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+
+        .close-modal:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 25px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .config-editor {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 400px;
+        }
+
+        .config-editor textarea {
+            width: 100%;
+            min-height: 400px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            resize: vertical;
+            outline: none;
+            padding: 10px;
+        }
+
+        .modal-footer {
+            padding: 20px 25px;
+            background: #f9fafb;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .modal-btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-primary {
+            background: #10b981;
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            background: #059669;
+        }
+
+        .modal-btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .modal-btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .modal-btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -239,6 +410,28 @@
     </div>
 
     <button class="fullscreen-btn" onclick="enterFullscreen()">Enter Fullscreen</button>
+    <button class="config-btn" onclick="openConfigModal()">⚙️ Edit Config</button>
+
+    <!-- Configuration Modal -->
+    <div class="modal" id="configModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Edit Proctoring Configuration</h2>
+                <button class="close-modal" onclick="closeConfigModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="error-message" id="errorMessage"></div>
+                <div class="config-editor">
+                    <textarea id="configTextarea" spellcheck="false"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-danger" onclick="resetToDefault()">Reset to Default</button>
+                <button class="modal-btn modal-btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="saveConfig()">Save & Reload</button>
+            </div>
+        </div>
+    </div>
 
     <script src="proctoring.js"></script>
 </body>
