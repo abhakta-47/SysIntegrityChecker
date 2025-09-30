@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Integrity Detection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-panel {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+        .green { background: #d4edda; color: #155724; }
+        .red { background: #f8d7da; color: #721c24; }
+        .yellow { background: #fff3cd; color: #856404; }
+        .detection-item {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid #007bff;
+        }
+        .log-container {
+            height: 200px;
+            overflow-y: auto;
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 10px;
+            font-family: monospace;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Browser Integrity Detection Test</h1>
+        <p>This page tests various methods to detect tab switching, window switching, and extension interference.</p>
+        
+        <div class="status-panel" id="overallStatus">
+            <h3>Overall Status: <span id="statusText">Monitoring...</span></h3>
+        </div>
+
+        <div class="test-section">
+            <h2>1. Core Visibility Detection</h2>
+            <div class="detection-item">
+                <strong>Page Visibility API:</strong> 
+                <span id="visibilityStatus">Active</span>
+                <div>Last change: <span id="lastVisibilityChange">-</span></div>
+            </div>
+            <div class="detection-item">
+                <strong>Window Focus:</strong> 
+                <span id="focusStatus">Focused</span>
+            </div>
+            <div class="detection-item">
+                <strong>User Activity:</strong> 
+                <span id="activityStatus">Active</span>
+                <div>Last activity: <span id="lastActivity">-</span></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>2. API Tampering Detection</h2>
+            <div class="detection-item">
+                <strong>Visibility API Integrity:</strong> 
+                <span id="apiIntegrityStatus">Checking...</span>
+            </div>
+            <div class="detection-item">
+                <strong>Event Listener Integrity:</strong> 
+                <span id="eventListenerStatus">Checking...</span>
+            </div>
+            <div class="detection-item">
+                <strong>Property Descriptors:</strong> 
+                <span id="propertyDescriptorStatus">Checking...</span>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. Behavioral Detection</h2>
+            <div class="detection-item">
+                <strong>Event Consistency:</strong> 
+                <span id="consistencyStatus">Monitoring...</span>
+            </div>
+            <div class="detection-item">
+                <strong>Multi-API Correlation:</strong> 
+                <span id="correlationStatus">Monitoring...</span>
+            </div>
+            <button onclick="runAdvancedTests()">Run Advanced Tests</button>
+        </div>
+
+        <div class="test-section">
+            <h2>4. Extension Detection</h2>
+            <div class="detection-item">
+                <strong>Known Extensions:</strong> 
+                <span id="extensionStatus">Scanning...</span>
+            </div>
+            <div class="detection-item">
+                <strong>Event Blocking Detection:</strong> 
+                <span id="blockingDetectionStatus">Monitoring...</span>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>5. Real-time Log</h2>
+            <div class="log-container" id="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+            <button onclick="simulateTabSwitch()">Simulate Tab Switch</button>
+            <button onclick="testFullscreen()">Test Fullscreen API</button>
+        </div>
+
+        <div class="test-section">
+            <h2>Detection Results</h2>
+            <div id="violationsList"></div>
+        </div>
+    </div>
+
+    <script>
+        class IntegrityMonitor {
+            constructor() {
+                this.violations = [];
+                this.logEntries = [];
+                this.detectionTriggered = {
+                    visibility: false,
+                    blur: false,
+                    focus: false,
+                    pageHide: false
+                };
+                this.lastActivityTime = Date.now();
+                this.startTime = Date.now();
+                this.setupEventListeners();
+                this.startDetection();
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] ${message}`;
+                this.logEntries.push(logEntry);
+                
+                const logContainer = document.getElementById('log');
+                logContainer.innerHTML = logEntry + '<br>' + logContainer.innerHTML;
+                
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+
+            reportViolation(type, evidence) {
+                if (!this.violations.some(v => v.type === type)) {
+                    this.violations.push({ type, evidence, timestamp: Date.now() });
+                    this.log(`🚨 VIOLATION DETECTED: ${type} - ${evidence}`, 'warning');
+                    this.updateViolationsDisplay();
+                }
+            }
+
+            updateViolationsDisplay() {
+                const violationsList = document.getElementById('violationsList');
+                violationsList.innerHTML = this.violations.map(v => 
+                    `<div class="detection-item red">
+                        <strong>${v.type}</strong><br>
+                        ${v.evidence}<br>
+                        <small>Detected at: ${new Date(v.timestamp).toLocaleTimeString()}</small>
+                    </div>`
+                ).join('');
+            }
+
+            setupEventListeners() {
+                // Page Visibility API
+                document.addEventListener('visibilitychange', () => {
+                    this.detectionTriggered.visibility = true;
+                    const isHidden = document.hidden;
+                    document.getElementById('visibilityStatus').textContent = 
+                        isHidden ? 'Hidden' : 'Visible';
+                    document.getElementById('lastVisibilityChange').textContent = 
+                        new Date().toLocaleTimeString();
+                    
+                    if (isHidden) {
+                        this.reportViolation('TAB_SWITCH', 'Page Visibility API detected tab switch');
+                    }
+                    
+                    this.log(`Visibility changed: ${document.visibilityState}`);
+                });
+
+                // Window Focus/Blur
+                window.addEventListener('blur', () => {
+                    this.detectionTriggered.blur = true;
+                    document.getElementById('focusStatus').textContent = 'Blurred';
+                    this.log('Window lost focus');
+                });
+
+                window.addEventListener('focus', () => {
+                    this.detectionTriggered.focus = true;
+                    document.getElementById('focusStatus').textContent = 'Focused';
+                    this.log('Window gained focus');
+                });
+
+                // User Activity Monitoring
+                const activityEvents = ['mousemove', 'keydown', 'click', 'scroll'];
+                activityEvents.forEach(event => {
+                    document.addEventListener(event, () => {
+                        this.lastActivityTime = Date.now();
+                        document.getElementById('lastActivity').textContent = 
+                            new Date().toLocaleTimeString();
+                        document.getElementById('activityStatus').textContent = 'Active';
+                    }, { passive: true });
+                });
+
+                // Check for inactivity
+                setInterval(() => {
+                    const inactiveTime = Date.now() - this.lastActivityTime;
+                    if (inactiveTime > 10000) { // 10 seconds
+                        document.getElementById('activityStatus').textContent = 'Inactive';
+                        if (inactiveTime > 30000) { // 30 seconds
+                            this.reportViolation('INACTIVITY', `User inactive for ${Math.round(inactiveTime/1000)} seconds`);
+                        }
+                    }
+                }, 5000);
+            }
+
+            checkAPITampering() {
+                // Check Visibility API property descriptors
+                try {
+                    const visibilityDescriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+                    const hiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+                    
+                    if (visibilityDescriptor && !visibilityDescriptor.configurable) {
+                        this.reportViolation('API_TAMPERING', 'visibilityState property descriptor modified');
+                        document.getElementById('propertyDescriptorStatus').textContent = 'Tampered';
+                        document.getElementById('propertyDescriptorStatus').className = 'red';
+                    } else {
+                        document.getElementById('propertyDescriptorStatus').textContent = 'Normal';
+                        document.getElementById('propertyDescriptorStatus').className = 'green';
+                    }
+                } catch (e) {
+                    this.reportViolation('API_TAMPERING', `Error checking property descriptors: ${e.message}`);
+                }
+
+                // Check event listener integrity
+                const nativeAddEventListener = EventTarget.prototype.addEventListener;
+                if (nativeAddEventListener.toString().includes('[native code]') === false) {
+                    this.reportViolation('API_TAMPERING', 'addEventListener function has been modified');
+                    document.getElementById('eventListenerStatus').textContent = 'Tampered';
+                    document.getElementById('eventListenerStatus').className = 'red';
+                } else {
+                    document.getElementById('eventListenerStatus').textContent = 'Normal';
+                    document.getElementById('eventListenerStatus').className = 'green';
+                }
+
+                // Check if visibility API is accessible
+                if (typeof document.hidden === 'undefined' || typeof document.visibilityState === 'undefined') {
+                    this.reportViolation('API_TAMPERING', 'Page Visibility API not available');
+                    document.getElementById('apiIntegrityStatus').textContent = 'Missing';
+                    document.getElementById('apiIntegrityStatus').className = 'red';
+                } else {
+                    document.getElementById('apiIntegrityStatus').textContent = 'Available';
+                    document.getElementById('apiIntegrityStatus').className = 'green';
+                }
+            }
+
+            checkBehavioralConsistency() {
+                // Cross-API validation
+                const viaVisibilityAPI = document.hidden;
+                const viaFocusAPI = !document.hasFocus();
+                
+                if (viaVisibilityAPI !== viaFocusAPI) {
+                    this.reportViolation('BEHAVIORAL_INCONSISTENCY', 
+                        `Visibility API: ${viaVisibilityAPI}, Focus API: ${viaFocusAPI}`);
+                    document.getElementById('correlationStatus').textContent = 'Inconsistent';
+                    document.getElementById('correlationStatus').className = 'red';
+                } else {
+                    document.getElementById('correlationStatus').textContent = 'Consistent';
+                    document.getElementById('correlationStatus').className = 'green';
+                }
+
+                // Event consistency check
+                setTimeout(() => {
+                    const allEventsFired = Object.values(this.detectionTriggered).some(fired => fired);
+                    if (!allEventsFired) {
+                        document.getElementById('consistencyStatus').textContent = 'Suspicious';
+                        document.getElementById('consistencyStatus').className = 'yellow';
+                    } else {
+                        document.getElementById('consistencyStatus').textContent = 'Normal';
+                        document.getElementById('consistencyStatus').className = 'green';
+                    }
+                }, 3000);
+            }
+
+            checkForExtensions() {
+                // Check for known anti-detection extensions
+                const knownExtensionSignatures = {
+                    'uBlock Origin': () => typeof window.uboHelper !== 'undefined',
+                    'Privacy Badger': () => typeof window.badger !== 'undefined',
+                    'Ghostery': () => typeof window.ghostery !== 'undefined',
+                    'AdBlock': () => typeof window.blockAdBlock !== 'undefined',
+                    'Script Blocker': () => {
+                        try {
+                            return document.createElement('script').onload === null;
+                        } catch (e) {
+                            return false;
+                        }
+                    }
+                };
+
+                let detectedExtensions = [];
+                for (const [name, detector] of Object.entries(knownExtensionSignatures)) {
+                    if (detector()) {
+                        detectedExtensions.push(name);
+                        this.reportViolation('EXTENSION_DETECTED', `Known extension: ${name}`);
+                    }
+                }
+
+                const extensionStatus = document.getElementById('extensionStatus');
+                if (detectedExtensions.length > 0) {
+                    extensionStatus.textContent = `Detected: ${detectedExtensions.join(', ')}`;
+                    extensionStatus.className = 'yellow';
+                } else {
+                    extensionStatus.textContent = 'None detected';
+                    extensionStatus.className = 'green';
+                }
+            }
+
+            testEventBlocking() {
+                // Test if events are being blocked by programmatically triggering them
+                setTimeout(() => {
+                    const beforeTest = this.detectionTriggered.visibility;
+
+                    console.log('beforetest', beforeTest)
+                    
+                    // Programmatically trigger events
+                    document.dispatchEvent(new Event('visibilitychange'));
+                    window.dispatchEvent(new Event('blur'));
+                    window.dispatchEvent(new Event('focus'));
+                    
+                    setTimeout(() => {
+                        if (!this.detectionTriggered.visibility && !beforeTest) {
+                            this.reportViolation('EVENT_BLOCKING', 'Visibility events appear to be blocked');
+                            document.getElementById('blockingDetectionStatus').textContent = 'Blocking Detected';
+                            document.getElementById('blockingDetectionStatus').className = 'red';
+                        } else {
+                            document.getElementById('blockingDetectionStatus').textContent = 'Normal';
+                            document.getElementById('blockingDetectionStatus').className = 'green';
+                        }
+                    }, 100);
+                }, 2000);
+            }
+
+            startDetection() {
+                this.log('Starting integrity monitoring...');
+                
+                // Run initial checks
+                this.checkAPITampering();
+                this.checkForExtensions();
+                this.testEventBlocking();
+                
+                // Continuous monitoring
+                setInterval(() => {
+                    this.checkBehavioralConsistency();
+                }, 5000);
+
+                // RequestAnimationFrame timing analysis
+                this.startAnimationFrameAnalysis();
+            }
+
+            startAnimationFrameAnalysis() {
+                let lastCall = performance.now();
+                const checkAnimationFrame = () => {
+                    const now = performance.now();
+                    const timeSinceLastCall = now - lastCall;
+                    
+                    // If tab is hidden but we're getting regular RAF calls, something's suspicious
+                    if (document.hidden && timeSinceLastCall < 50) {
+                        this.reportViolation('ANIMATION_FRAME_ANOMALY', 
+                            `RAF called regularly while hidden. Interval: ${timeSinceLastCall.toFixed(2)}ms`);
+                    }
+                    
+                    lastCall = now;
+                    requestAnimationFrame(checkAnimationFrame);
+                };
+                requestAnimationFrame(checkAnimationFrame);
+            }
+        }
+
+        // Global instance
+        const monitor = new IntegrityMonitor();
+
+        // Utility functions for the UI
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            monitor.logEntries = [];
+        }
+
+        function simulateTabSwitch() {
+            monitor.log('Simulating tab switch behavior...');
+            // This can't actually simulate real tab switching, but we can test our detectors
+            document.dispatchEvent(new Event('visibilitychange'));
+        }
+
+        function testFullscreen() {
+            if (document.fullscreenEnabled) {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(e => {
+                        monitor.log(`Fullscreen error: ${e.message}`, 'error');
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            } else {
+                monitor.log('Fullscreen API not enabled', 'warning');
+            }
+        }
+
+        function runAdvancedTests() {
+            monitor.log('Running advanced detection tests...');
+            monitor.checkAPITampering();
+            monitor.testEventBlocking();
+            monitor.checkBehavioralConsistency();
+            
+            // Test passive event listeners
+            document.addEventListener('test-passive', () => {}, {
+                passive: true,
+                capture: true
+            });
+            
+            monitor.log('Advanced tests completed');
+        }
+
+        // Update overall status
+        setInterval(() => {
+            const statusText = document.getElementById('statusText');
+            const overallStatus = document.getElementById('overallStatus');
+            
+            if (monitor.violations.length > 0) {
+                statusText.textContent = `🚨 ${monitor.violations.length} Violations Detected`;
+                overallStatus.className = 'status-panel red';
+            } else {
+                const uptime = Math.round((Date.now() - monitor.startTime) / 1000);
+                statusText.textContent = `✅ Normal (${uptime}s)`;
+                overallStatus.className = 'status-panel green';
+            }
+        }, 1000);
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            monitor.log('Detection system initialized');
+        });
+    </script>
+</body>
+</html>

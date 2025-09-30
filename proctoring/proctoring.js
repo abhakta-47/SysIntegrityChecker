@@ -341,7 +341,7 @@ function initializeMonitoring() {
         });
     });
 
-    testEventBlocking();
+    // testEventBlocking();
 }
 
 // ============ MULTIPLE MONITOR DETECTION ============
