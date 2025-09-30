@@ -243,6 +243,9 @@ function updateStatus(elementId, text, isGood) {
     if (!statusElement) return;
     
     statusElement.textContent = text;
+
+    if(indicatorElement.textContent == '✗')
+        return;
     
     if (isGood === null) {
         indicatorElement.textContent = '-';
