@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proctoring Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .status-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .status-info h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .status-info p {
+            font-size: 16px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            font-size: 32px;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .check {
+            color: #10b981;
+        }
+
+        .cross {
+            color: #ef4444;
+        }
+
+        .log-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .log-header h2 {
+            font-size: 20px;
+            color: #333;
+        }
+
+        .clear-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .clear-btn:hover {
+            background: #dc2626;
+        }
+
+        .log-display {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px;
+            border-left: 3px solid transparent;
+            padding-left: 10px;
+        }
+
+        .log-warning {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .log-error {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .log-info {
+            border-left-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .log-success {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .timestamp {
+            color: #9ca3af;
+            margin-right: 10px;
+        }
+
+        .fullscreen-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            transition: all 0.3s;
+        }
+
+        .fullscreen-btn:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Proctoring Monitor System</h1>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <div class="status-info">
+                    <h3>Window Focus</h3>
+                    <p id="focus-status">Active</p>
+                </div>
+                <div class="status-indicator" id="focus-indicator">✓</div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-info">
+                    <h3>Fullscreen</h3>
+                    <p id="fullscreen-status">Not Active</p>
+                </div>
+                <div class="status-indicator" id="fullscreen-indicator">✗</div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-info">
+                    <h3>Mouse Position</h3>
+                    <p id="mouse-status">Inside Window</p>
+                </div>
+                <div class="status-indicator" id="mouse-indicator">✓</div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-info">
+                    <h3>Tab Visibility</h3>
+                    <p id="visibility-status">Visible</p>
+                </div>
+                <div class="status-indicator" id="visibility-indicator">✓</div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-info">
+                    <h3>Multiple Monitors</h3>
+                    <p id="monitor-status">Checking...</p>
+                </div>
+                <div class="status-indicator" id="monitor-indicator">-</div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-info">
+                    <h3>Violations Count</h3>
+                    <p id="violation-count">0</p>
+                </div>
+                <div class="status-indicator" id="violation-indicator">✓</div>
+            </div>
+        </div>
+
+        <div class="log-container">
+            <div class="log-header">
+                <h2>Activity Log</h2>
+                <button class="clear-btn" onclick="clearLogs()">Clear Logs</button>
+            </div>
+            <div class="log-display" id="log-display"></div>
+        </div>
+    </div>
+
+    <button class="fullscreen-btn" onclick="enterFullscreen()">Enter Fullscreen</button>
+
+    <script src="proctoring.js"></script>
+</body>
+</html>
