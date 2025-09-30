@@ -197,7 +197,7 @@ const DEFAULT_PROCTORING_CONFIG = {
                     const width = window.innerWidth;
                     const height = window.innerHeight;
                     const message = `Window resized: ${width}x${height}`;
-                    
+
                     const isFullscreen = document.fullscreenElement !== null;
                     if (!isFullscreen && (width < screen.availWidth || height < screen.availHeight)) {
                         return { message: message + ' (NOT MAXIMIZED)', logOnly: true, isViolation: false };
@@ -228,10 +228,10 @@ function addLog(message, type = 'info', apiName = null) {
     const logDisplay = document.getElementById('log-display');
     const logEntry = document.createElement('div');
     logEntry.className = `log-entry log-${type}`;
-    
+
     const apiTag = apiName ? `<strong>[${apiName}]</strong> ` : '';
     logEntry.innerHTML = `<span class="timestamp">[${getTimestamp()}]</span>${apiTag}${message}`;
-    
+
     logDisplay.appendChild(logEntry);
     logDisplay.scrollTop = logDisplay.scrollHeight;
 }
@@ -239,14 +239,14 @@ function addLog(message, type = 'info', apiName = null) {
 function updateStatus(elementId, text, isGood) {
     const statusElement = document.getElementById(elementId);
     const indicatorElement = document.getElementById(elementId.replace('-status', '-indicator'));
-    
+
     if (!statusElement) return;
-    
+
     statusElement.textContent = text;
 
-    if(indicatorElement.textContent == '✗')
+    if (indicatorElement.textContent == '✗')
         return;
-    
+
     if (isGood === null) {
         indicatorElement.textContent = '-';
         indicatorElement.className = 'status-indicator';
@@ -263,7 +263,7 @@ function incrementViolation() {
     violationCount++;
     document.getElementById('violation-count').textContent = violationCount;
     const violationIndicator = document.getElementById('violation-indicator');
-    
+
     if (violationCount > 0) {
         violationIndicator.textContent = '✗';
         violationIndicator.className = 'status-indicator cross';
@@ -283,16 +283,16 @@ function enterFullscreen() {
 
 // ============ GENERIC EVENT HANDLER WRAPPER ============
 function createEventHandler(monitor, categoryConfig) {
-    return function(event) {
+    return function (event) {
         const result = monitor.handler(event);
-        
+
         if (!result) return; // Handler returned null (ignore)
-        
+
         // Determine violation status
-        const isViolation = result.isViolation !== undefined 
-            ? result.isViolation 
+        const isViolation = result.isViolation !== undefined
+            ? result.isViolation
             : (monitor.isViolation || false);
-        
+
         // Determine log type
         let logType = 'info';
         if (isViolation) {
@@ -302,19 +302,19 @@ function createEventHandler(monitor, categoryConfig) {
         } else if (result.isGood === true) {
             logType = 'success';
         }
-        
+
         // Add violation prefix if needed
         const prefix = isViolation ? '⚠️ VIOLATION: ' : '';
         const message = prefix + result.message;
-        
+
         // Log the event with API name
         addLog(message, logType, monitor.api);
-        
+
         // Update status if not log-only
         if (!result.logOnly && categoryConfig.statusId) {
             updateStatus(categoryConfig.statusId, result.status, result.isGood);
         }
-        
+
         // Increment violation count
         if (isViolation) {
             incrementViolation();
@@ -327,19 +327,21 @@ function initializeMonitoring() {
     Object.entries(PROCTORING_CONFIG).forEach(([categoryKey, categoryConfig]) => {
         categoryConfig.monitors.forEach(monitor => {
             const handler = createEventHandler(monitor, categoryConfig);
-            
+
             // Get the target element
-            const target = monitor.target === 'window' ? window : 
-                          monitor.target === 'document' ? document : 
-                          document;
-            
+            const target = monitor.target === 'window' ? window :
+                monitor.target === 'document' ? document :
+                    document;
+
             // Register event listener
             target.addEventListener(monitor.event, handler);
-            
+
             // Log registration
             console.log(`✓ Registered: ${monitor.api} on ${monitor.target}`);
         });
     });
+
+    testEventBlocking();
 }
 
 // ============ MULTIPLE MONITOR DETECTION ============
@@ -359,7 +361,7 @@ async function checkMultipleMonitors() {
             const screenHeight = window.screen.height;
             const availWidth = window.screen.availWidth;
             const availHeight = window.screen.availHeight;
-            
+
             updateStatus('monitor-status', 'Cannot Detect', null);
             addLog(`Screen info: ${screenWidth}x${screenHeight} (Available: ${availWidth}x${availHeight})`, 'info', 'screen.width/height');
         }
@@ -376,31 +378,62 @@ setInterval(() => {
     if (!hasFocus && document.getElementById('focus-status').textContent !== 'Lost Focus') {
         updateStatus('focus-status', 'Lost Focus', false);
     }
-    
+
     // Check visibility using document.hidden
     if (document.hidden && document.getElementById('visibility-status').textContent !== 'Hidden') {
         updateStatus('visibility-status', 'Hidden', false);
     }
-    
+
     // Check fullscreen using document.fullscreenElement
     if (!document.fullscreenElement && document.getElementById('fullscreen-status').textContent !== 'Not Active') {
         updateStatus('fullscreen-status', 'Not Active', false);
     }
 }, 1000);
 
+function testEventBlocking() {
+    // Local variable to track visibility detection
+    let visibilityDetected = true;
+
+    // Handler to update the variable on visibilitychange
+    function visibilityHandler() {
+        visibilityDetected = false;
+    }
+
+    // Attach temporary handler
+    document.addEventListener('visibilitychange', visibilityHandler, { once: true });
+
+    setTimeout(() => {
+        // Programmatically trigger events
+        document.dispatchEvent(new Event('visibilitychange'));
+        window.dispatchEvent(new Event('blur'));
+        window.dispatchEvent(new Event('focus'));
+
+        setTimeout(() => {
+            if (visibilityDetected) {
+                // If still true, event was blocked
+                addLog('Visibility events appear to be blocked', 'error', 'window.dispatchEvent|document.dispatchEvent');
+                // Optionally: reportViolation('EVENT_BLOCKING', ...)
+            } else {
+                // document.getElementById('blockingDetectionStatus').textContent = 'Normal';
+                // document.getElementById('blockingDetectionStatus').className = 'green';
+            }
+        }, 100);
+    }, 2000);
+}
+
 // ============ INITIALIZATION ============
 window.addEventListener('load', () => {
     addLog('=== Proctoring System Initialized ===', 'success');
-    
+
     // Initialize all monitoring from config
     initializeMonitoring();
-    
+
     addLog('All API listeners registered successfully', 'info');
     addLog('Monitoring started...', 'info');
-    
+
     // Initial checks
     checkMultipleMonitors();
-    
+
     // Check initial focus using document.hasFocus()
     if (document.hasFocus()) {
         updateStatus('focus-status', 'Active', true);
@@ -409,13 +442,13 @@ window.addEventListener('load', () => {
         updateStatus('focus-status', 'Lost Focus', false);
         addLog('Initial focus check: Lost Focus', 'warning', 'document.hasFocus()');
     }
-    
+
     // Check initial visibility using document.hidden
     if (!document.hidden) {
         updateStatus('visibility-status', 'Visible', true);
         addLog('Initial visibility check: Visible', 'info', 'document.hidden');
     }
-    
+
     addLog(`Screen resolution: ${screen.width}x${screen.height}`, 'info', 'screen.width/height');
     addLog(`Window size: ${window.innerWidth}x${window.innerHeight}`, 'info', 'window.innerWidth/Height');
 });
