@@ -410,28 +410,7 @@
     </div>
 
     <button class="fullscreen-btn" onclick="enterFullscreen()">Enter Fullscreen</button>
-    <button class="config-btn" onclick="openConfigModal()">⚙️ Edit Config</button>
-
-    <!-- Configuration Modal -->
-    <div class="modal" id="configModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>⚙️ Edit Proctoring Configuration</h2>
-                <button class="close-modal" onclick="closeConfigModal()">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="error-message" id="errorMessage"></div>
-                <div class="config-editor">
-                    <textarea id="configTextarea" spellcheck="false"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-btn modal-btn-danger" onclick="resetToDefault()">Reset to Default</button>
-                <button class="modal-btn modal-btn-secondary" onclick="closeConfigModal()">Cancel</button>
-                <button class="modal-btn modal-btn-primary" onclick="saveConfig()">Save & Reload</button>
-            </div>
-        </div>
-    </div>
+    <!-- <button class="config-btn" onclick="openConfigModal()">⚙️ Edit Config</button> -->
 
     <script src="proctoring.js"></script>
 </body>
